@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alloy
+  namespace: shopmicro
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alloy
+  template:
+    metadata:
+      labels:
+        app: alloy
+    spec:
+      containers:
+      - name: alloy
+        image: otel/opentelemetry-collector-contrib:latest
+        args:
+        - --config=/etc/alloy/config.alloy
+        ports:
+        - containerPort: 4318
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alloy
+      volumes:
+      - name: config
+        configMap:
+          name: alloy-config
+

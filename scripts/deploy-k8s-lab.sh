@@ -51,7 +51,7 @@ if minikube status | grep -q "Running"; then
 else
     print_status $YELLOW "Starting Minikube with 6GB RAM and 4 CPUs..."
     minikube start --memory=6144 --cpus=4 --disk-size=20g
-    
+
     if [ $? -ne 0 ]; then
         print_status $RED "❌ Failed to start Minikube"
         exit 1
@@ -90,6 +90,11 @@ print_status $BLUE "Step 4: Deploying to Kubernetes..."
 print_status $YELLOW "Creating namespace..."
 kubectl apply -f k8s/namespace.yaml
 
+# Apply configmaps and services early so dependent objects exist before pods start
+print_status $YELLOW "Applying configmaps and services..."
+kubectl apply -f k8s/configmaps/ || true
+kubectl apply -f k8s/services/ || true
+
 print_status $YELLOW "Deploying infrastructure services..."
 kubectl apply -f k8s/deployments/postgres.yaml
 kubectl apply -f k8s/deployments/redis.yaml
@@ -99,6 +104,9 @@ kubectl wait --for=condition=available --timeout=120s deployment postgres -n sho
 kubectl wait --for=condition=available --timeout=120s deployment redis -n shopmicro
 
 print_status $YELLOW "Deploying observability stack..."
+# Apply any ConfigMaps first
+kubectl apply -f k8s/configmaps/ || true
+
 kubectl apply -f k8s/deployments/mimir.yaml
 kubectl apply -f k8s/deployments/loki.yaml
 kubectl apply -f k8s/deployments/tempo.yaml
@@ -114,6 +122,10 @@ kubectl apply -f k8s/deployments/frontend.yaml
 
 print_status $YELLOW "Deploying Grafana..."
 kubectl apply -f k8s/deployments/grafana.yaml
+
+print_status $YELLOW "Deploying ingress..."
+# Apply ingress so routing objects exist
+kubectl apply -f k8s/ingress/ || true
 
 print_status $YELLOW "Waiting for all deployments to be ready..."
 kubectl wait --for=condition=available --timeout=300s deployment --all -n shopmicro
