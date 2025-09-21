@@ -3,14 +3,14 @@ FROM node:20-alpine3.22 AS base
 
 # Install security updates and common tools
 RUN apk update && apk upgrade && \
-    apk add --no-cache dumb-init curl && \
-    rm -rf /var/cache/apk/*
+  apk add --no-cache dumb-init curl && \
+  rm -rf /var/cache/apk/*
 
 # Create app directory with proper permissions
 WORKDIR /usr/src/app
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
-    chown -R nodejs:nodejs /usr/src/app
+  adduser -S nodejs -u 1001 && \
+  chown -R nodejs:nodejs /usr/src/app
 
 # Development stage
 FROM base AS development
@@ -46,12 +46,13 @@ COPY --from=builder --chown=nodejs:nodejs /usr/src/app/node_modules ./node_modul
 # Copy application code
 COPY --chown=nodejs:nodejs package*.json ./
 COPY --chown=nodejs:nodejs server.js ./
+COPY --chown=nodejs:nodejs telemetry.js ./
 COPY --chown=nodejs:nodejs routes/ ./routes/
 COPY --chown=nodejs:nodejs middleware/ ./middleware/
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3001/health || exit 1
+  CMD curl -f http://localhost:3001/health || exit 1
 
 # Expose port
 EXPOSE 3001
