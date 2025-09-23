@@ -21,31 +21,32 @@ spec:
       - name: ml-service
         image: shopmicro-ml-service:latest
         imagePullPolicy: Never
+        ports:
+          - containerPort: 3002
         env:
         - name: PORT
           value: "3002"
         - name: REDIS_URL
           value: "redis://redis:6379"
-        ports:
-        - containerPort: 3002
-          name: http
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "200m"
-          limits:
-            memory: "512Mi"
-            cpu: "400m"
+        - name: BACKEND_URL
+          value: "http://backend:3001"
         livenessProbe:
           httpGet:
             path: /health/live
             port: 3002
-          initialDelaySeconds: 20
-          periodSeconds: 10
+          initialDelaySeconds: 15
+          periodSeconds: 20
         readinessProbe:
           httpGet:
             path: /health/ready
             port: 3002
-          initialDelaySeconds: 5
-          periodSeconds: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "500Mi"
+            cpu: "512m"
 
