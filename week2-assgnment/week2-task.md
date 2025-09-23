@@ -10,6 +10,18 @@ kubectl get pods -n shopmicro
 
 ![](./images/all-pods-run.png)
 
+```bash
+kubectl get deploy -n shopmicro
+```
+
+![](./images/deploy-run.png)
+
+```bash
+kubectl get svc -n shopmicro
+```
+
+![](./images/services-run.png)
+
 ### Test 2: Service Connectivity
 
 ```bash
@@ -48,6 +60,8 @@ open http://localhost:3000
 ```
 
 ![](./images/dashboard.png)
+
+**Metrics**
 
 ![](./images/metrics.png)
 

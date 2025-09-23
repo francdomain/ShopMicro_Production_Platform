@@ -1,27 +1,3 @@
-# apiVersion: v1
-# kind: ConfigMap
-# metadata:
-#   name: mimir-config
-#   namespace: shopmicro
-# data:
-#   mimir.yaml: |-
-#     # Minimal valid Mimir config for local lab
-#     server:
-#       http_listen_port: 9009
-#       grpc_listen_port: 9095
-
-#     storage_config:
-#       backend: "filesystem"
-#       filesystem:
-#         directory: /data/mimir
-
-#     ruler:
-#       enabled: false
-
-#     limits:
-#       ingestion_rate: 300
-
-
 apiVersion: v1
 kind: ConfigMap
 metadata:

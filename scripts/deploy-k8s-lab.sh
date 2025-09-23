@@ -106,14 +106,16 @@ kubectl wait --for=condition=available --timeout=120s deployment redis -n shopmi
 print_status $YELLOW "Deploying observability stack..."
 # Apply any ConfigMaps first
 kubectl apply -f k8s/configmaps/ || true
-
+kubectl apply -f k8s/configmaps/prometheus-config.yaml -n shopmicro || true
+kubectl apply -f k8s/deployments/prometheus.yaml
 kubectl apply -f k8s/deployments/mimir.yaml
 kubectl apply -f k8s/deployments/loki.yaml
 kubectl apply -f k8s/deployments/tempo.yaml
 kubectl apply -f k8s/deployments/alloy.yaml
 
 print_status $YELLOW "Waiting for observability services..."
-sleep 30
+kubectl rollout status deployment/prometheus -n shopmicro --timeout=120s || true
+sleep 10
 
 print_status $YELLOW "Deploying application services..."
 kubectl apply -f k8s/deployments/backend.yaml
@@ -158,8 +160,9 @@ pkill -f "kubectl port-forward" 2>/dev/null || true
 
 # Start port forwards in background
 kubectl port-forward -n shopmicro svc/grafana 3000:3000 > /dev/null 2>&1 &
-kubectl port-forward -n shopmicro svc/frontend 8080:3000 > /dev/null 2>&1 &
+kubectl port-forward -n shopmicro svc/frontend 8080:80 > /dev/null 2>&1 &
 kubectl port-forward -n shopmicro svc/backend 3001:3001 > /dev/null 2>&1 &
+kubectl port-forward -n shopmicro svc/prometheus 9090:9090 > /dev/null 2>&1 &
 
 sleep 5
 

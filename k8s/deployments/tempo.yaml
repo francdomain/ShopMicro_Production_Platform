@@ -16,19 +16,18 @@ spec:
       containers:
       - name: tempo
         image: grafana/tempo:latest
-        args:
-        - "--config.file=/etc/tempo/tempo.yaml"
+        args: ["--config.file=/etc/tempo/tempo.yaml"]
         ports:
         - containerPort: 3200
-        - containerPort: 4318
+        - containerPort: 14250
         volumeMounts:
-        - name: data
-          mountPath: /data
+        # - name: data
+        #   mountPath: /data
         - name: tempo-config
           mountPath: /etc/tempo
       volumes:
-      - name: data
-        emptyDir: {}
+      # - name: data
+      #   emptyDir: {}
       - name: tempo-config
         configMap:
           name: tempo-config

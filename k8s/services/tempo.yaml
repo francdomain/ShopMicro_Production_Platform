@@ -9,12 +9,12 @@ spec:
   selector:
     app: tempo
   ports:
-  - port: 3200
+  - name: http
+    port: 3200
     targetPort: 3200
-    name: http
     protocol: TCP
-  - port: 4318
-    targetPort: 4318
-    name: otlp
+  - name: otlp
+    port: 14250
+    targetPort: 14250
     protocol: TCP
-  type: ClusterIP
+  # type: ClusterIP

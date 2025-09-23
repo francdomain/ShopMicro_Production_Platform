@@ -16,15 +16,17 @@ spec:
       containers:
       - name: alloy
         image: otel/opentelemetry-collector-contrib:latest
-        args:
-        - --config=/etc/alloy/config.alloy
+        command: ["/otelcol-contrib"]
+        args: ["--config=/etc/alloy/config.alloy"]
         ports:
-        - containerPort: 4318
+        - containerPort: 4317
+        - containerPort: 4318   # OTLP HTTP
+        - containerPort: 8889   # prometheus exporter (custom)
         volumeMounts:
-        - name: config
+        - name: alloy-config
           mountPath: /etc/alloy
       volumes:
-      - name: config
+      - name: alloy-config
         configMap:
           name: alloy-config
 
