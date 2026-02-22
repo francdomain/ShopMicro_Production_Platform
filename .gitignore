@@ -30,4 +30,12 @@ dump.rdb
 evidence/test-*
 
 FINAL_CAPSTONE_ASSIGNMENT.md
+
 KUBERNETES_BOOTCAMP_LAB.md
+
+# Troubleshooting and temporary documentation
+FINAL_ML_SERVICE_FIX.md
+ML_SERVICE_STATUS.md
+DOCKERFILE_CHANGES.md
+*_FIX.md
+*_STATUS.md
