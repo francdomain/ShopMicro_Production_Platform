@@ -7,7 +7,8 @@ RUN apt-get update && apt-get upgrade -y && \
   build-essential \
   curl \
   && rm -rf /var/lib/apt/lists/* && \
-  pip install --upgrade pip setuptools wheel
+  pip install --upgrade pip && \
+  pip install --force-reinstall setuptools wheel
 
 # Create app directory and user
 WORKDIR /usr/src/app
@@ -16,10 +17,14 @@ RUN useradd --create-home --shell /bin/bash app && \
 
 # Development stage
 FROM base AS development
-USER app
+ENV PATH="/home/app/.local/bin:$PATH"
+ENV PYTHONPATH="/usr/src/app:${PYTHONPATH}"
 COPY --chown=app:app requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Force setuptools reinstall to ensure pkg_resources is available
+RUN pip install --force-reinstall setuptools wheel && \
+  pip install --no-cache-dir -r requirements.txt
 COPY --chown=app:app . .
+USER app
 EXPOSE 3002
 CMD ["python", "app.py"]
 
@@ -28,19 +33,19 @@ FROM base AS production
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PATH="/home/app/.local/bin:$PATH"
+ENV PYTHONPATH="/usr/src/app:${PYTHONPATH}"
 
+# Force setuptools reinstall to ensure pkg_resources is available
+COPY requirements.txt .
+RUN pip install --force-reinstall setuptools wheel && \
+  pip install --no-cache-dir -r requirements.txt gunicorn
+
+# Copy full application code so production image has all modules
+COPY . .
+
+# Switch to app user
 USER app
-
-# Install Python dependencies
-COPY --chown=app:app requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt gunicorn
-
-# Copy full application code so production image has all modules (metrics, logging_config, telemetry, etc.)
-COPY --chown=app:app . .
-
-# Ensure the user's local pip binaries are on PATH
-ENV PATH=/home/app/.local/bin:$PATH
-ENV PYTHONPATH=/usr/src/app:${PYTHONPATH}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

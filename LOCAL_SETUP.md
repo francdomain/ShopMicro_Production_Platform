@@ -73,9 +73,18 @@ docker compose up --build -d
 
 **Explanation**: The `--build` flag rebuilds images, `-d` runs in detached mode (background)
 
-## Step 4: Verify All Services Are Running
+**⚠️ IMPORTANT**: The ML service may take 30-60 seconds to start because it compiles scikit-learn dependencies. Do NOT test it immediately. Wait at least 60 seconds before running health checks.
+
+**Note**: If the ML service fails with `ModuleNotFoundError: No module named 'pkg_resources'`, see the **Troubleshooting** section for the complete fix instructions.
+
+## Step 4: Verify All Services Are Running (Wait 30+ seconds)
 
 ```bash
+# WAIT AT LEAST 30 SECONDS before running this command
+# The ML service needs time to compile scikit-learn dependencies
+
+sleep 30
+
 # Check container status (all should show "healthy" or "running")
 docker compose ps
 
@@ -90,7 +99,28 @@ docker compose ps
 # ... and more
 ```
 
-## Step 5: Test Application Endpoints
+## Step 5: Test Application Endpoints (After 30+ second wait)
+
+### Important: Wait Before Testing
+
+```bash
+# The ML service needs 30-60 seconds to start up due to scikit-learn compilation
+# You will see "Connection refused" if you test too early
+
+# Check ML service logs to see startup progress
+docker compose logs ml-service | tail -20
+
+# Look for this message before testing:
+# "* Running on http://0.0.0.0:3002"
+```
+
+### ⚠️ ML Service Fix Applied
+
+If you see `ModuleNotFoundError: No module named 'pkg_resources'` error:
+
+- The Dockerfile has been updated to ensure setuptools is installed
+- Run: `docker compose build --no-cache ml-service && docker compose stop ml-service && docker compose up ml-service -d`
+- Wait 60 seconds before testing
 
 ### Backend Service
 
@@ -228,6 +258,47 @@ go run health-check.go
 
 ## Troubleshooting
 
+### ⚠️ URGENT: ML Service pkg_resources Error
+
+If you see: `ModuleNotFoundError: No module named 'pkg_resources'`
+
+**Root Cause**: The OpenTelemetry Flask instrumentation requires setuptools, but it wasn't properly installed.
+
+**Step-by-Step Fix**:
+
+```bash
+# 1. Stop the ml-service
+docker compose stop ml-service
+
+# 2. Remove the ml-service container
+docker compose rm ml-service
+
+# 3. Force rebuild the ml-service image without cache
+docker compose build --no-cache ml-service
+
+# This will take 5-10 minutes due to Python package compilation
+
+# 4. Once build completes, start all services
+docker compose up -d
+
+# 5. Wait 90 seconds (important!)
+sleep 90
+
+# 6. Test the ML service
+curl http://localhost:3002/health
+
+# Expected response: {"status":"ok","service":"ml-service"}
+
+# 7. If still not working, check logs
+docker compose logs ml-service | tail -50
+```
+
+**What was fixed in the Dockerfile**:
+
+- Added explicit `ENV PATH` to include user's local pip directory
+- Changed from `pip` to `python -m pip` for reliability
+- Ensured setuptools and wheel are installed before other packages
+
 ### Services Not Starting
 
 ```bash
@@ -272,6 +343,88 @@ docker stats
 
 # Reduce memory by stopping unused services
 docker compose stop grafana loki tempo mimir alloy
+```
+
+### ML Service Python Import Errors
+
+See the **URGENT: ML Service pkg_resources Error** section above for the complete fix.
+
+### ⚠️ ML Service Still Exiting After Fix
+
+If the ml-service container keeps exiting with code 1 even after applying the Dockerfile fix:
+
+**Debug Steps**:
+
+```bash
+# 1. Rebuild image completely fresh
+cd /Users/francdomain/Desktop/Dev-foundry/k8s/capstone-project
+docker compose down --volumes
+docker build --progress=plain --no-cache -t capstone-project-ml-service -f ml-service/Dockerfile ml-service/
+
+# 2. Test imports in the image
+docker run --rm capstone-project-ml-service python -c "import pkg_resources; print('pkg_resources: OK')"
+docker run --rm capstone-project-ml-service python -c "from opentelemetry.instrumentation.flask import FlaskInstrumentor; print('FlaskInstrumentor: OK')"
+docker run --rm capstone-project-ml-service python -c "from telemetry import tracer; print('telemetry: OK')"
+
+# 3. Test the full app import
+docker run --rm capstone-project-ml-service python -c "from app import app; print('app: OK')"
+
+# 4. Once tests pass, restart the container
+docker compose up -d ml-service
+sleep 90
+curl http://localhost:3002/health
+```
+
+**Key Points About the Fix**:
+
+- Changed from `pip install --user` to system-wide `pip install` (running as root during build)
+- This ensures packages are accessible to all users, including the app user
+- The app user is only used at runtime (after CMD), not during package installation
+- Setuptools must be installed before other packages that depend on it (like opentelemetry-instrumentation-flask)
+
+**Quick commands**:
+
+```bash
+docker compose stop ml-service
+docker compose rm ml-service
+docker compose build --no-cache ml-service
+docker compose up -d
+sleep 90
+curl http://localhost:3002/health
+```
+
+For other import errors (e.g., sklearn, pandas) after the fix:
+
+```bash
+# Force complete rebuild without any cache
+docker compose down
+docker system prune -a
+docker compose build --no-cache
+docker compose up -d
+
+# Wait 2 minutes for Python dependencies to compile
+sleep 120
+
+# Check ml-service logs
+docker compose logs ml-service -f
+```
+
+### Checking Individual Service Health
+
+```bash
+# ML Service - NOTE: Takes 30-60 seconds to start
+# Do NOT test immediately after docker compose up
+sleep 30
+curl -v http://localhost:3002/health
+
+# If connection refused, service is still starting
+# Check logs:
+docker compose logs ml-service -f
+
+# Look for this startup message:
+# "* Running on http://0.0.0.0:3002"
+# or
+# "Listening on 3002"
 ```
 
 ## Step 11: Stop Services
