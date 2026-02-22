@@ -1,192 +1,222 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/H3VcIaBd)
-[![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-2e0aaae1b6195c2367325f4f02e2d04e9abb55f0b24a779b69b11b9e10269abc.svg)](https://classroom.github.com/online_ide?assignment_repo_id=20502256&assignment_repo_type=AssignmentRepo)
-# DevOps & Platform Engineering Bootcamp - Week 2
+# ShopMicro Production Platform
 
-## Overview
+## 1. Problem Statement and Architecture Summary
 
-A comprehensive 5-day bootcamp covering DevOps and Platform Engineering fundamentals through hands-on implementation of a microservices e-commerce application.
+ShopMicro is a microservices e-commerce platform consisting of:
 
-## Project: ShopMicro - E-commerce Platform
+- **Frontend**: React.js web application for customer interactions
+- **Backend**: Node.js/Express API for product and user management
+- **ML Service**: Python/Flask recommendation engine
+- **Database**: PostgreSQL for persistent data, Redis for caching
+- **Observability**: Grafana stack (Mimir, Loki, Tempo) for monitoring
 
-- **Backend API**: Node.js/Express product and user management
-- **Frontend**: React.js customer interface  
-- **ML Service**: Python recommendation engine
-- **Database**: PostgreSQL with Redis caching
-- **Infrastructure**: Docker, Kubernetes, monitoring stack
+The platform implements a complete DevOps/Platform Engineering toolchain for production deployment on Kubernetes with comprehensive observability.
 
-## Daily Breakdown (3 hours per session)
+## 2. High-Level Architecture Diagram
 
-### Day 1: Application Architecture & Docker Fundamentals
+```
+┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend API   │
+│   (React)       │◄──►│   (Node.js)     │
+│   Port: 8080    │    │   Port: 3001    │
+└─────────────────┘    └─────────────────┘
+         │                       │
+         ▼                       ▼
+┌─────────────────┐    ┌─────────────────┐
+│   ML Service    │    │   PostgreSQL    │
+│   (Python)      │    │   Port: 5432    │
+│   Port: 3002    │    └─────────────────┘
+└─────────────────┘             ▲
+         │                     │
+         ▼                     │
+┌─────────────────┐             │
+│     Redis       │◄────────────┘
+│   Port: 6379    │
+└─────────────────┘
 
-**Duration**: 3 hours  
-**Focus**: Containerization and local development
+Observability Stack:
+- Grafana (Port 3000): Dashboards and visualization
+- Mimir (Port 9009): Metrics storage
+- Loki (Port 3100): Log aggregation
+- Tempo (Port 3200): Distributed tracing
+- Alloy: Telemetry collection
+```
 
-**Learning Objectives**:
+## 3. Prerequisites and Tooling Versions
 
-- Understand microservices architecture
-- Master Docker fundamentals
-- Implement multi-service local development
+### Required Tools
 
-**Topics Covered**:
+- Docker 24+
+- Docker Compose 2.0+
+- kubectl 1.28+
+- Terraform 1.5+
+- Ansible 2.15+
+- Go 1.21+ (for CLI tools)
+- Node.js 20+
+- Python 3.12+
 
-- Application architecture design
-- Dockerfile creation and optimization
-- Docker Compose for multi-service orchestration
-- Container networking and volumes
-- Development workflow with containers
+### Infrastructure Requirements
 
-**Deliverables**:
+- Kubernetes cluster (EKS, GKE, or local)
+- AWS account (for cloud deployment)
+- Docker registry access
 
-- Fully containerized application stack
-- Local development environment
-- Docker best practices implementation
+## 4. Exact Deploy Commands
 
----
+### Local Development
 
-### Day 2: CI/CD Pipeline Implementation
+```bash
+# Start all services locally
+docker compose up --build -d
 
-**Duration**: 3 hours  
-**Focus**: Automated testing, building, and deployment
+# View logs
+docker compose logs -f
 
-**Learning Objectives**:
+# Stop services
+docker compose down
+```
 
-- Design effective CI/CD strategies
-- Implement automated testing
-- Master GitHub Actions workflows
-- Understand deployment strategies
+### Production Deployment
 
-**Topics Covered**:
+```bash
+# Install KEDA for event-driven autoscaling
+kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml
 
-- Git workflow and branching strategies
-- Automated testing (unit, integration, e2e)
-- GitHub Actions pipeline creation
-- Container registry management
-- Deployment automation
-- Environment promotion strategies
+# Deploy infrastructure
+cd infrastructure/terraform
+terraform init
+terraform plan
+terraform apply
 
-**Deliverables**:
+# Configure hosts
+cd ../ansible
+ansible-playbook -i inventory.ini playbook.yml
 
-- Complete CI/CD pipeline
-- Automated testing suite
-- Multi-environment deployment
+# Deploy to Kubernetes
+kubectl apply -f k8s/
 
----
+# Verify deployment
+kubectl get pods
+kubectl get services
+```
 
-### Day 3: Kubernetes Orchestration
+## 5. Exact Test/Verification Commands
 
-**Duration**: 3 hours  
-**Focus**: Container orchestration and scaling
+### Health Checks
 
-**Learning Objectives**:
+```bash
+# Run health check CLI
+cd tools
+go run health-check.go
 
-- Master Kubernetes fundamentals
-- Implement service discovery and load balancing
-- Understand scaling strategies
-- Manage configuration and secrets
+# Manual health checks
+curl http://localhost:3001/health
+curl http://localhost:8080
+curl http://localhost:3002/health
+```
 
-**Topics Covered**:
+### Test Suite
 
-- Kubernetes architecture and concepts
-- Deployment and service manifests
-- ConfigMaps and Secrets management
-- Ingress controllers and routing
-- Horizontal Pod Autoscaling
-- Rolling updates and rollbacks
+```bash
+# Backend tests
+cd backend && npm test
 
-**Deliverables**:
+# ML service tests
+cd ../ml-service && python -m pytest
 
-- Production-ready Kubernetes manifests
-- Scaling and update strategies
-- Service mesh basics
+# Integration tests
+docker compose exec backend npm run test:integration
+```
 
----
+## 6. Observability Usage Guide
 
-### Day 4: Observability & Monitoring
+### Accessing Dashboards
 
-**Duration**: 3 hours  
-**Focus**: Monitoring, logging, and alerting
+```bash
+# Port forward Grafana
+kubectl port-forward svc/grafana 3000:3000
 
-**Learning Objectives**:
+# Open browser to http://localhost:3000
+# Username: admin, Password: admin
+```
 
-- Implement comprehensive monitoring
-- Master logging strategies
-- Create effective alerting
-- Understand SRE principles
+### Viewing Metrics/Logs/Traces
 
-**Topics Covered**:
+- **Metrics**: Grafana dashboards (Platform Overview, Backend Health, ML Service)
+- **Logs**: Loki in Grafana Explore, filter by service
+- **Traces**: Tempo in Grafana, view distributed traces
 
-- Prometheus metrics collection
-- Grafana dashboard creation
-- Centralized logging with ELK/Loki
-- Distributed tracing
-- Alerting and incident response
-- SLIs, SLOs, and error budgets
+### SLIs and SLOs
 
-**Deliverables**:
+- **Availability SLI**: 99.9% uptime for backend service (SLO: 99.9% over 30 days)
+- **Latency SLI**: 95% of requests < 500ms (SLO: 95% over 30 days)
+- **Error Rate SLI**: < 1% 5xx errors (SLO: < 1% over 30 days)
 
-- Complete monitoring stack
-- Custom dashboards and alerts
-- Logging and tracing implementation
+## 7. Rollback Procedure
 
----
+```bash
+# Check rollout history
+kubectl rollout history deployment/backend
 
-### Day 5: Advanced Topics & Production Readiness
+# Rollback to previous version
+kubectl rollout undo deployment/backend
 
-**Duration**: 3 hours  
-**Focus**: Security, performance, and best practices
+# Verify rollback
+kubectl rollout status deployment/backend
 
-**Learning Objectives**:
+# Check application health
+curl http://<ingress-url>/health
+```
 
-- Implement security best practices
-- Optimize performance
-- Plan for production deployment
-- Understand platform engineering concepts
+## 8. Security Controls Implemented
 
-**Topics Covered**:
+### Network Security
 
-- Security scanning and compliance
-- Performance optimization
-- Backup and disaster recovery
-- Infrastructure as Code (IaC)
-- Platform engineering patterns
-- ML service integration
-- Cost optimization
+- Least privilege network policies
+- No public SSH access
+- Encrypted secrets in Kubernetes
 
-**Deliverables**:
+### Application Security
 
-- Security-hardened application
-- Performance optimization
-- Production deployment plan
-- ML recommendation service
+- Non-root container execution
+- Read-only root filesystems where possible
+- Security contexts applied
 
----
+### Infrastructure Security
 
-## Prerequisites
+- IAM roles with minimal permissions
+- VPC isolation
+- Encrypted data at rest/transit
 
-- Basic programming knowledge (JavaScript, Python)
-- Git fundamentals
-- Command line proficiency
-- Docker installed locally
-- Kubernetes cluster access (minikube or cloud)
+## 9. Backup/Restore Procedure
 
-## Tools & Technologies
+See `runbooks/backup-restore.md` for detailed procedures.
 
-- **Containers**: Docker, Docker Compose
-- **Orchestration**: Kubernetes, Helm
-- **CI/CD**: GitHub Actions
-- **Monitoring**: Prometheus, Grafana, Jaeger
-- **Logging**: Elasticsearch, Logstash, Kibana
-- **Languages**: Node.js, React, Python
-- **Databases**: PostgreSQL, Redis
-- **Cloud**: AWS/GCP/Azure (examples)
+### Quick Commands
 
-## Getting Started
+```bash
+# PostgreSQL backup
+kubectl exec postgres-pod -- pg_dump -U postgres shopmicro > backup.sql
 
-1. Clone this repository
-2. Install prerequisites
-3. Follow day-by-day instructions
-4. Complete hands-on exercises
-5. Build and deploy your own version
+# Redis backup
+kubectl exec redis-pod -- redis-cli SAVE
+kubectl cp redis-pod:/data/dump.rdb ./redis-backup.rdb
+```
 
-Each day builds upon the previous, creating a comprehensive DevOps platform by the end of the week.
+## 10. Known Limitations and Next Improvements
 
+### Current Limitations
+
+- Single region deployment
+- No automated scaling policies
+- Basic authentication only
+- Manual backup procedures
+
+### Future Improvements
+
+- Multi-region deployment with failover
+- Advanced HPA with custom metrics
+- OAuth2 authentication
+- Automated backup to S3
+- Service mesh (Istio) integration
+- GitOps with ArgoCD

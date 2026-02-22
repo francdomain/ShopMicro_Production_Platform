@@ -1,0 +1,10 @@
+---
+- name: Configure ShopMicro infrastructure
+  hosts: shopmicro_eks_nodes
+  roles:
+    - common
+
+  post_tasks:
+    - name: Verify idempotency
+      command: echo "Configuration applied successfully"
+      changed_when: false

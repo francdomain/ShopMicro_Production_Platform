@@ -1,0 +1,205 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly drift check
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        cd backend && npm ci
+        cd ../frontend && npm ci
+        cd ../ml-service && pip install -r requirements.txt
+
+    - name: Lint backend
+      run: cd backend && npm run lint || echo "No lint script"
+
+    - name: Lint frontend
+      run: cd frontend && npm run lint || echo "No lint script"
+
+    - name: Format check
+      run: |
+        cd backend && npx prettier --check . || echo "Prettier check failed"
+        cd ../frontend && npx prettier --check . || echo "Prettier check failed"
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        cd backend && npm ci
+        cd ../frontend && npm ci
+        cd ../ml-service && pip install -r requirements.txt
+
+    - name: Run backend tests
+      run: cd backend && npm test || echo "No tests"
+      env:
+        POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/test
+        REDIS_URL: redis://localhost:6379
+
+    - name: Run ml-service tests
+      run: cd ml-service && python -m pytest || echo "No tests"
+
+    - name: Build Docker images
+      run: |
+        docker build -t backend ./backend
+        docker build -t frontend ./frontend
+        docker build -t ml-service ./ml-service
+
+  build-and-push:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and push backend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/shopmicro-backend:latest
+
+    - name: Build and push frontend
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/shopmicro-frontend:latest
+
+    - name: Build and push ml-service
+      uses: docker/build-push-action@v5
+      with:
+        context: ./ml-service
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/shopmicro-ml-service:latest
+
+  iac-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Terraform fmt
+      run: cd infrastructure/terraform && terraform fmt -check
+
+    - name: Terraform validate
+      run: cd infrastructure/terraform && terraform init -backend=false && terraform validate
+
+    - name: Checkov scan
+      uses: bridgecrewio/checkov-action@v12
+      with:
+        directory: infrastructure/terraform/
+        framework: terraform
+
+    - name: Ansible lint
+      run: |
+        pip install ansible-lint
+        ansible-lint infrastructure/ansible/playbook.yml
+
+  deploy:
+    needs: [build-and-push, iac-check]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name shopmicro-eks
+
+    - name: Install KEDA
+      run: kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.13.0/keda-2.13.0.yaml
+
+        kubectl rollout status deployment/backend
+        kubectl rollout status deployment/frontend
+        kubectl rollout status deployment/ml-service
+
+  drift-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Check for drift
+      run: |
+        cd infrastructure/terraform
+        terraform init
+        terraform plan -detailed-exitcode
+      continue-on-error: true

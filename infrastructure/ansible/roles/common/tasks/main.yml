@@ -1,0 +1,54 @@
+---
+- name: Update system packages
+  package:
+    name: "*"
+    state: latest
+  when: ansible_os_family == "RedHat"
+
+- name: Install common packages
+  package:
+    name:
+      - curl
+      - wget
+      - vim
+      - htop
+      - python3
+      - python3-pip
+    state: present
+
+- name: Configure firewall (allow necessary ports)
+  firewalld:
+    service: "{{ item }}"
+    permanent: yes
+    state: enabled
+  loop:
+    - ssh
+    - http
+    - https
+  when: ansible_os_family == "RedHat"
+
+- name: Reload firewall
+  service:
+    name: firewalld
+    state: reloaded
+  when: ansible_os_family == "RedHat"
+
+- name: Create monitoring user
+  user:
+    name: monitor
+    system: yes
+    shell: /bin/bash
+
+- name: Configure SSH hardening
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PermitRootLogin"
+    line: "PermitRootLogin no"
+  notify: restart sshd
+
+- name: Configure SSH hardening - password auth
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?PasswordAuthentication"
+    line: "PasswordAuthentication no"
+  notify: restart sshd
